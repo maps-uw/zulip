@@ -819,6 +819,8 @@ class UserProfile(AbstractBaseUser, PermissionsMixin):
     is_api_super_user = models.BooleanField(default=False, db_index=True)  # type: bool
 
     ### Notifications settings. ###
+    # Favicon desktop notification
+    enable_all_favicon_dekstop_notifications = models.BooleanField(default=True)  # type: bool
 
     # Stream notifications.
     enable_stream_desktop_notifications = models.BooleanField(default=False)  # type: bool
@@ -952,6 +954,7 @@ class UserProfile(AbstractBaseUser, PermissionsMixin):
     )
 
     notification_setting_types = dict(
+        enable_all_favicon_dekstop_notifications=bool,
         enable_desktop_notifications=bool,
         enable_digest_emails=bool,
         enable_login_emails=bool,

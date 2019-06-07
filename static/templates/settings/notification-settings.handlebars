@@ -63,6 +63,26 @@
               "label" settings_label.enable_offline_email_notifications}}
         </div>
 
+      <h3 class="light">{{t "Favicon desktop notification" }}</h3>
+        <p>{{t "Only include pm, @, alert, stream push notification if not all" }}</p>
+
+        <div class="side-padded-container">
+
+            <div class="input-group">
+                <label class="checkbox">
+                    <input type="checkbox" name="enable_all_favicon_dekstop_notifications" id="enable_all_favicon_dekstop_notifications"
+                           {{#if page_params.enable_all_favicon_dekstop_notifications}}
+                           checked="checked"
+                           {{/if}} />
+                    <span></span>
+                </label>
+                <label for="enable_all_favicon_dekstop_notifications" class="inline-block">
+                    {{t "All notifications" }}
+                </label>
+            </div>
+
+        </div>
+
         <div id="other_notifications">
 
             <h3 class="inline-block">{{t "Other notification settings" }}</h3>
@@ -76,7 +96,7 @@
               "label" settings_label.pm_content_in_desktop_notifications}}
 
             <label for="notification_sound">
-                {{t "Notification sound" }}
+                {{t "Notification sound:" }}
             </label>
 
             <div class="input-group {{#unless enable_sound_select}}control-label-disabled{{/unless}}">
