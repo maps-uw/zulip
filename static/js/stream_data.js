@@ -633,6 +633,17 @@ exports.receives_desktop_notifications = function (stream_name) {
     return page_params.enable_stream_desktop_notifications;
 };
 
+exports.receives_push_notifications = function (stream_name) {
+    var sub = exports.get_sub(stream_name);
+    if (sub === undefined) {
+        return false;
+    }
+    if (sub.push_notifications !== null) {
+        return sub.push_notifications;
+    }
+    return page_params.enable_stream_push_notifications;
+};
+
 exports.receives_audible_notifications = function (stream_name) {
     var sub = exports.get_sub(stream_name);
     if (sub === undefined) {
