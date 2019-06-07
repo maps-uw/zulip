@@ -229,6 +229,10 @@ def bot_owner_user_ids(user_profile: UserProfile) -> Set[int]:
         users.add(user_profile.bot_owner_id)
         return users
 
+def log_messages_read(user_profile: UserProfile, client: Client, count: int) -> None:
+    do_increment_logging_stat(user_profile, COUNT_STATS['messages_read_log:client:day'],
+                              client.id, timezone_now(), increment=count)
+
 def realm_user_count(realm: Realm) -> int:
     return UserProfile.objects.filter(realm=realm, is_active=True, is_bot=False).count()
 
@@ -3051,7 +3055,7 @@ def bulk_remove_subscriptions(users: Iterable[UserProfile],
 
         altered_users = altered_user_dict[stream.id]
         altered_user_ids = [u.id for u in altered_users]
-
+        altered_user_names = [u.full_name for u in altered_users]
         subscribed_user_ids = all_subscribers_by_stream[stream.id]
 
         peer_user_ids = get_peer_user_ids_for_stream_change(
@@ -3059,6 +3063,16 @@ def bulk_remove_subscriptions(users: Iterable[UserProfile],
             altered_user_ids=altered_user_ids,
             subscribed_user_ids=subscribed_user_ids,
         )
+
+        # send message to private stream on unsubscription of user
+        if stream.invite_only:
+            unsubcription_message = private_stream_user_unsubscribed_message(
+                                    new_users = ", ".join(altered_user_names),
+                                    stream_name = stream.name
+                                    )
+
+            internal_send_message(users[0].realm, settings.NOTIFICATION_BOT,
+                                  "stream", stream.name, "hello", unsubcription_message)
 
         if peer_user_ids:
             for removed_user in altered_users:
@@ -3092,6 +3106,15 @@ def bulk_remove_subscriptions(users: Iterable[UserProfile],
         not_subscribed,
     )
 
+def private_stream_user_unsubscribed_message(new_users: str,
+                                stream_name: str) -> str:
+    
+    message = _("@**%(actingUser_full_name)s** left the stream #**%(stream_name)s**." % \
+                {"actingUser_full_name": new_users, 
+                "stream_name": stream_name})
+
+    return message
+    
 def log_subscription_property_change(user_email: str, stream_name: str, property: str,
                                      value: Any) -> None:
     event = {'type': 'subscription_property',
@@ -3979,6 +4002,12 @@ def do_update_pointer(user_profile: UserProfile, client: Client,
                                    message__id__lte=pointer).extra(where=[UserMessage.where_unread()]) \
                            .update(flags=F('flags').bitor(UserMessage.flags.read))
         do_clear_mobile_push_notifications_for_ids(user_profile, app_message_ids)
+        count = UserMessage.objects.filter(user_profile=user_profile,
+                                           message__id__gt=prev_pointer,
+                                           message__id__lte=pointer,
+                                           flags=~UserMessage.flags.read)        \
+                                   .update(flags=F('flags').bitor(UserMessage.flags.read))
+        log_messages_read(user_profile, client, count)
 
     event = dict(type='pointer', pointer=pointer)
     send_event(user_profile.realm, event, [user_profile.id])
@@ -4044,7 +4073,7 @@ def do_mark_all_as_read(user_profile: UserProfile, client: Client) -> int:
         where=[UserMessage.where_active_push_notification()],
     ).values_list("message_id", flat=True)[0:10000]
     do_clear_mobile_push_notifications_for_ids(user_profile, all_push_message_ids)
-
+    log_messages_read(user_profile, client, count)
     return count
 
 def do_mark_stream_messages_as_read(user_profile: UserProfile,
@@ -4087,6 +4116,7 @@ def do_mark_stream_messages_as_read(user_profile: UserProfile,
     do_clear_mobile_push_notifications_for_ids(user_profile, message_ids)
 
     statsd.incr("mark_stream_as_read", count)
+    log_messages_read(user_profile, client, count)
     return count
 
 def do_clear_mobile_push_notifications_for_ids(user_profile: UserProfile,
@@ -4157,6 +4187,8 @@ def do_update_message_flags(user_profile: UserProfile,
 
     if operation == 'add':
         count = msgs.update(flags=F('flags').bitor(flagattr))
+        if flag == 'read':
+            log_messages_read(user_profile, client, count)
     elif operation == 'remove':
         count = msgs.update(flags=F('flags').bitand(~flagattr))
     else:
@@ -5232,9 +5264,11 @@ def get_web_public_streams(realm: Realm) -> List[Dict[str, Any]]:
 def do_get_streams(
         user_profile: UserProfile, include_public: bool=True,
         include_subscribed: bool=True, include_all_active: bool=False,
-        include_default: bool=False, include_owner_subscribed: bool=False
+        include_default: bool=False, include_owner_subscribed: bool=False,
+        include_all_deactivated: bool=False,
 ) -> List[Dict[str, Any]]:
-    if include_all_active and not user_profile.is_api_super_user:
+    if (include_all_active or include_all_deactivated) and \
+            not user_profile.is_api_super_user:
         raise JsonableError(_("User not authorized for this query"))
 
     include_public = include_public and user_profile.can_access_public_streams()
@@ -5276,7 +5310,8 @@ def do_get_streams(
         else:
             # Don't bother doing to the database with no valid sources
             query = []
-
+    if include_all_deactivated:
+        query = query | Stream.objects.filter(deactivated=True)
     streams = [(row.to_dict()) for row in query]
     streams.sort(key=lambda elt: elt["name"])
     if include_default:

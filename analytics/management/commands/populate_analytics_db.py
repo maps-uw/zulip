@@ -181,7 +181,7 @@ class Command(BaseCommand):
         API, created = Client.objects.get_or_create(name='API: Python')
         zephyr_mirror, created = Client.objects.get_or_create(name='zephyr_mirror')
         unused, created = Client.objects.get_or_create(name='unused')
-        long_webhook, created = Client.objects.get_or_create(name='ZulipLooooooooooongNameWebhook')
+        long_webhook, created = Client.objects.get_or_create(name='ZulipLongNameWebhook')
 
         stat = COUNT_STATS['messages_sent:client:day']
         user_data = {
@@ -220,5 +220,34 @@ class Command(BaseCommand):
         stream_data = {'false': self.generate_fixture_data(stat, 10, 7, 5, .6, 4),
                        'true': self.generate_fixture_data(stat, 5, 3, 2, .4, 2)}  # type: Mapping[Optional[str], List[int]]
         insert_fixture_data(stat, stream_data, StreamCount)
+        FillState.objects.create(property=stat.property, end_time=last_end_time,
+                                 state=FillState.DONE)
+        stat = COUNT_STATS['messages_read_log:client:day']
+        user_data = {
+            website.id: self.generate_fixture_data(stat, 1, 1, 1.2, .6, 8),
+            zephyr_mirror.id: self.generate_fixture_data(stat, 0, .3, 1.5, .6, 8)}
+        insert_fixture_data(stat, user_data, UserCount)
+        realm_data = {
+            website.id: self.generate_fixture_data(stat, 20, 20, 2, .6, 3),
+            old_desktop.id: self.generate_fixture_data(stat, 3, 1, 8, .6, 3),
+            android.id: self.generate_fixture_data(stat, 3, 5, 3, .6, 3),
+            iOS.id: self.generate_fixture_data(stat, 2, 5, 3, .6, 3),
+            react_native.id: self.generate_fixture_data(stat, 5, 5, 10, .6, 3),
+            API.id: self.generate_fixture_data(stat, 5, 3, 5, .6, 3),
+            zephyr_mirror.id: self.generate_fixture_data(stat, 1, 1, 3, .6, 3),
+            unused.id: self.generate_fixture_data(stat, 0, 0, 0, 0, 0),
+            long_webhook.id: self.generate_fixture_data(stat, 6, 5, 2, .6, 3)}
+        insert_fixture_data(stat, realm_data, RealmCount)
+        installation_data = {
+            website.id: self.generate_fixture_data(stat, 20, 30, 2, .6, 3),
+            old_desktop.id: self.generate_fixture_data(stat, 400, 30, 8, .7, 3),
+            android.id: self.generate_fixture_data(stat, 50, 50, 3, .6, 3),
+            iOS.id: self.generate_fixture_data(stat, 40, 50, 3, .6, 3),
+            react_native.id: self.generate_fixture_data(stat, 6, 5, 10, .6, 3),
+            API.id: self.generate_fixture_data(stat, 30, 50, 5, .6, 3),
+            zephyr_mirror.id: self.generate_fixture_data(stat, 10, 20, 3, .6, 3),
+            unused.id: self.generate_fixture_data(stat, 0, 0, 0, 0, 0),
+            long_webhook.id: self.generate_fixture_data(stat, 40, 50, 2, .6, 3)}
+        insert_fixture_data(stat, installation_data, InstallationCount)
         FillState.objects.create(property=stat.property, end_time=last_end_time,
                                  state=FillState.DONE)

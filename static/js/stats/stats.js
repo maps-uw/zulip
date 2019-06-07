@@ -521,6 +521,156 @@ function populate_messages_sent_by_client(data) {
     });
 }
 
+function populate_messages_read_by_client(data) {
+    var layout = {
+        width: 750,
+        height: null, // set in draw_plot()
+        margin: { l: 3, r: 40, b: 40, t: 0 },
+        font: font_14pt,
+        xaxis: { range: null }, // set in draw_plot()
+        yaxis: { showticklabels: false },
+        showlegend: false,
+    };
+
+    // sort labels so that values are descending in the default view
+    var everyone_month = compute_summary_chart_data(
+        data.everyone, 30, data.display_order.slice(0, 12));
+    var label_values = [];
+    for (var i = 0; i < everyone_month.values.length; i += 1) {
+            label_values.push({
+                label: everyone_month.labels[i],
+                value: everyone_month.labels[i] === "Other" ? -1 : everyone_month.values[i],
+            });
+        }
+    label_values.sort(function (a, b) { return b.value - a.value; });
+    var labels = [];
+    label_values.forEach(function (item) { labels.push(item.label); });
+
+    function make_plot_data(time_series_data, num_steps) {
+        var plot_data = compute_summary_chart_data(time_series_data, num_steps, labels);
+        plot_data.values.reverse();
+        plot_data.labels.reverse();
+        plot_data.percentages.reverse();
+        var annotations = {values: [], labels: [], text: []};
+        for (var i = 0; i < plot_data.values.length; i += 1) {
+            if (plot_data.values[i] > 0) {
+                annotations.values.push(plot_data.values[i]);
+                annotations.labels.push(plot_data.labels[i]);
+                annotations.text.push('   ' + plot_data.labels[i] + ' (' + plot_data.percentages[i] + ')');
+            }
+        }
+        return {
+            trace: {
+                x: plot_data.values,
+                y: plot_data.labels,
+                type: 'bar',
+                orientation: 'h',
+                sort: false,
+                textinfo: "text",
+                hoverinfo: "none",
+                marker: { color: '#537c5e' },
+                font: { family: 'Source Sans Pro', size: 18, color: '#000000' },
+            },
+            trace_annotations: {
+                x: annotations.values,
+                y: annotations.labels,
+                mode: 'text',
+                type: 'scatter',
+                textposition: 'middle right',
+                text: annotations.text,
+            },
+        };
+    }
+
+    var plot_data = {
+        everyone: {
+            cumulative: make_plot_data(data.everyone, data.end_times.length),
+            year: make_plot_data(data.everyone, 365),
+            month: make_plot_data(data.everyone, 30),
+            week: make_plot_data(data.everyone, 7),
+        },
+        user: {
+            cumulative: make_plot_data(data.user, data.end_times.length),
+            year: make_plot_data(data.user, 365),
+            month: make_plot_data(data.user, 30),
+            week: make_plot_data(data.user, 7),
+        },
+    };
+
+    var user_button = 'everyone';
+    var time_button;
+    if (data.end_times.length >= 30) {
+        time_button = 'month';
+        $('#messages_by_client_last_month_button').addClass("selected");
+    } else {
+        time_button = 'cumulative';
+        $('#messages_by_client_cumulative_button').addClass("selected");
+    }
+
+    if (data.end_times.length < 365) {
+        $("#pie_messages_read_by_client button[data-time='year']").remove();
+        if (data.end_times.length < 30) {
+            $("#pie_messages_read_by_client button[data-time='month']").remove();
+            if (data.end_times.length < 7) {
+                $("#pie_messages_read_by_client button[data-time='week']").remove();
+            }
+        }
+    }
+
+    function draw_plot() {
+        $('#id_messages_read_by_client > div').removeClass("spinner");
+        var data_ = plot_data[user_button][time_button];
+        layout.height = layout.margin.b + data_.trace.x.length * 30;
+        layout.xaxis.range = [0, Math.max.apply(null, data_.trace.x) * 1.3];
+        Plotly.newPlot('id_messages_read_by_client',
+                       [data_.trace, data_.trace_annotations],
+                       layout,
+                       {displayModeBar: false, staticPlot: true});
+    }
+
+    draw_plot();
+
+    // Click handlers
+    function set_user_button(button) {
+        $("#pie_messages_read_by_client button[data-user]").removeClass("selected");
+        button.addClass("selected");
+    }
+
+    function set_time_button(button) {
+        $("#pie_messages_read_by_client button[data-time]").removeClass("selected");
+        button.addClass("selected");
+    }
+
+    $("#pie_messages_read_by_client button").click(function () {
+        if ($(this).attr("data-user")) {
+            set_user_button($(this));
+            user_button = $(this).attr("data-user");
+        }
+        if ($(this).attr("data-time")) {
+            set_time_button($(this));
+            time_button = $(this).attr("data-time");
+        }
+        draw_plot();
+    });
+
+    // handle links with @href started with '#' only
+    $(document).on('click', 'a[href^="#"]', function (e) {
+        // target element id
+        var id = $(this).attr('href');
+        // target element
+        var $id = $(id);
+        if ($id.length === 0) {
+            return;
+        }
+        // prevent standard hash navigation (avoid blinking in IE)
+        e.preventDefault();
+        var pos = $id.offset().top + $('.page-content')[0].scrollTop - 50;
+        $('.page-content').animate({scrollTop: pos + "px"}, 500);
+    });
+}
+
+
+
 function populate_messages_sent_by_message_type(data) {
     var layout = {
         margin: { l: 90, r: 0, b: 0, t: 0 },
@@ -746,6 +896,11 @@ get_chart_data(
 get_chart_data(
     {chart_name: 'messages_sent_by_client', min_length: '10'},
     populate_messages_sent_by_client
+);
+
+get_chart_data(
+    {chart_name: 'messages_read_by_client', min_length: '10'},
+    populate_messages_read_by_client
 );
 
 get_chart_data(

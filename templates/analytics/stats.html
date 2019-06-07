@@ -62,6 +62,23 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="chart-container pie-chart">
+                    <div id="pie_messages_read_by_client">
+                        <h1>{{ _("Messages read by client") }}</h1>
+                        <div id="id_messages_read_by_client" class="number-stat">
+                            <div class="spinner"></div>
+                        </div>
+                        <div class="buttons">
+                            <button class="button" type="button" data-user="user">{{ _("Me") }}</button>
+                            <button class="button selected" type="button" data-user="everyone">{{ _("Everyone") }}</button>
+                            <button class="button" type="button" data-time="week">{{ _("Last week") }}</button>
+                            <button class="button selected" type="button" data-time="month">{{ _("Last month") }}</button>
+                            <button class="button" type="button" data-time="year">{{ _("Last year") }}</button>
+                            <button class="button" type="button" data-time="cumulative">{{ _("All time") }}</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="right">
