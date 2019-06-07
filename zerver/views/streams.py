@@ -254,10 +254,34 @@ def remove_subscriptions_backend(
                                                           request.client,
                                                           acting_user=user_profile)
 
+    # Notify affected user when unsubscribed by the realm admin
+    email_to_user_profile = dict()  # type: Dict[str, UserProfile]
+    notifications = []
+    notify_stream_names = []
+
     for (subscriber, removed_stream) in removed:
-        result["removed"].append(removed_stream.name)
+        if(user_profile.email != subscriber.email):
+            result["removed"].append(removed_stream.name)
+            email_to_user_profile[subscriber.email] = subscriber
+            notify_stream_names.append("".join(removed_stream.name))
+            msg = you_were_just_unsubscribed_message(
+                acting_user=user_profile,
+                stream_names=notify_stream_names,
+                )
+
+            # Send notification using the NOTIFICATION_BOT
+            sender = get_system_bot(settings.NOTIFICATION_BOT)
+            notifications.append(internal_prep_private_message(
+                            realm=user_profile.realm,
+                            sender=sender,
+                            recipient_user=email_to_user_profile[subscriber.email],
+                            content=msg))
+
     for (subscriber, not_subscribed_stream) in not_subscribed:
         result["not_subscribed"].append(not_subscribed_stream.name)
+
+    if len(notifications) > 0:
+        do_send_messages(notifications)
 
     return json_success(result)
 
@@ -274,6 +298,32 @@ def you_were_just_subscribed_message(acting_user: UserProfile,
     message += "\n\n"
     for stream_name in subscriptions:
         message += "* #**%s**\n" % (stream_name,)
+    return message
+
+def you_were_just_unsubscribed_message(acting_user: UserProfile,
+                                     stream_names: Set[str]) -> str:
+    subscriptions = sorted(list(stream_names))
+    if len(subscriptions) == 1:
+        return _("Hi there! @**%(full_name)s** just unsubscribed you from the stream #**%(stream_name)s**.") % \
+            {"full_name": acting_user.full_name,
+             "stream_name": subscriptions[0]}
+
+    message = _("Hi there! @**%(full_name)s** just unsubscribed you from the following streams:") % \
+        {"full_name": acting_user.full_name}
+    message += "\n\n"
+    for stream_name in subscriptions:
+        message += "* #**%s**\n" % (stream_name,)
+    return message
+
+def new_user_subscribed_message(acting_user: UserProfile,
+                                new_users: str,
+                                stream_names: Set[str]) -> str:
+    
+    message = _("@**%(actingUser_full_name)s** added @**%(targetUser_full_name)s** to the stream #**%(stream_name)s**." % \
+             {"actingUser_full_name": acting_user.full_name,
+              "targetUser_full_name": new_users, 
+              "stream_name": stream_names})
+    
     return message
 
 @require_non_guest_user
@@ -418,7 +468,32 @@ def add_subscriptions_backend(
     if not user_profile.realm.is_zephyr_mirror_realm:
         for stream in created_streams:
             notifications.append(prep_stream_welcome_message(stream))
+    
+    # send message to private stream on new subscription of users
+    private_stream_subscribers = defaultdict(list)  # type: Dict[Any, List[UserProfile]]
+    for (subscriber, stream) in subscribed:
+        if stream.invite_only and subscriber != user_profile:
+            private_stream_subscribers[stream.name].append(subscriber)
+            notifications_stream = stream
 
+    for stream in private_stream_subscribers:
+        new_user_names = [u.full_name for u in private_stream_subscribers[stream]]
+        msg = new_user_subscribed_message(
+            acting_user = user_profile,
+            new_users = ", ".join(new_user_names),
+            stream_names = stream
+        )
+
+        # Send notifications using the NOTIFICATION_BOT
+        sender = get_system_bot(settings.NOTIFICATION_BOT)
+        notifications.append(
+            internal_prep_stream_message(
+                realm=user_profile.realm,
+                sender=sender,
+                stream=notifications_stream,
+                topic="hello",
+                content=msg))
+    
     if len(notifications) > 0:
         do_send_messages(notifications)
 
@@ -446,14 +521,16 @@ def get_streams_backend(
         include_subscribed: bool=REQ(validator=check_bool, default=True),
         include_all_active: bool=REQ(validator=check_bool, default=False),
         include_default: bool=REQ(validator=check_bool, default=False),
-        include_owner_subscribed: bool=REQ(validator=check_bool, default=False)
+        include_owner_subscribed: bool=REQ(validator=check_bool, default=False),
+        include_all_deactivated: bool=REQ(validator=check_bool, default=False),
 ) -> HttpResponse:
 
     streams = do_get_streams(user_profile, include_public=include_public,
                              include_subscribed=include_subscribed,
                              include_all_active=include_all_active,
                              include_default=include_default,
-                             include_owner_subscribed=include_owner_subscribed)
+                             include_owner_subscribed=include_owner_subscribed,
+                             include_all_deactivated=include_all_deactivated)
     return json_success({"streams": streams})
 
 @has_request_variables
