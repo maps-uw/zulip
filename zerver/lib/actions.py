@@ -3074,6 +3074,7 @@ def bulk_remove_subscriptions(users: Iterable[UserProfile],
             internal_send_message(users[0].realm, settings.NOTIFICATION_BOT,
                                   "stream", stream.name, "hello", unsubcription_message)
 
+        # send event to all users in the stream
         if peer_user_ids:
             for removed_user in altered_users:
                 event = dict(type="subscription",
@@ -3106,6 +3107,7 @@ def bulk_remove_subscriptions(users: Iterable[UserProfile],
         not_subscribed,
     )
 
+# funtion to return the formatted message for user unsubcription
 def private_stream_user_unsubscribed_message(new_users: str,
                                 stream_name: str) -> str:
     

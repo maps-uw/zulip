@@ -300,6 +300,7 @@ def you_were_just_subscribed_message(acting_user: UserProfile,
         message += "* #**%s**\n" % (stream_name,)
     return message
 
+# funtion to return the formatted message for user unsubcription by admin
 def you_were_just_unsubscribed_message(acting_user: UserProfile,
                                      stream_names: Set[str]) -> str:
     subscriptions = sorted(list(stream_names))
@@ -315,6 +316,7 @@ def you_were_just_unsubscribed_message(acting_user: UserProfile,
         message += "* #**%s**\n" % (stream_name,)
     return message
 
+# funtion to return the formatted message for user subcription
 def new_user_subscribed_message(acting_user: UserProfile,
                                 new_users: str,
                                 stream_names: Set[str]) -> str:
