@@ -136,9 +136,17 @@ exports.permission_state = function () {
 
 var new_message_count = 0;
 
-exports.update_title_count = function (count) {
-    new_message_count = count;
-    exports.redraw_title();
+exports.update_title_count = function (res) {
+    new_message_count = count;	
+     if (page_params.enable_all_favicon_dekstop_notifications) {
+        new_message_count = res.home_unread_messages;
+    } else {
+        // Count private message && mentioned message && alert word message &&
+        // stream push message notifications in favicon notification
+        new_message_count = res.favicon_message_count;
+    }
+    
+  exports.redraw_title();
 };
 
 exports.redraw_title = function () {

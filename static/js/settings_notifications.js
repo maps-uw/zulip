@@ -17,6 +17,7 @@ var pm_mention_notification_settings = [
 ];
 
 var other_notification_settings = [
+    "enable_all_favicon_dekstop_notifications",
     "pm_content_in_desktop_notifications",
     "enable_online_push_notifications",
     "notification_sound",
