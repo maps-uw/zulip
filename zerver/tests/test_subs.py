@@ -3739,6 +3739,64 @@ class GetSubscribersTest(ZulipTestCase):
         self.login(self.example_email("iago"))
         self.make_successful_subscriber_request(stream_name)
 
+class GetDeactivatedStreamsTest(ZulipTestCase):
+
+    def test_deactivated_streams_api(self) -> None:
+        realm = get_realm('zulip')
+        iago_user = self.example_user('iago')
+        iago_user.is_api_super_user = True
+        iago_user.save()
+        self.login(iago_user.email)
+
+        def delete_stream(stream_name: str) -> None:
+            stream_id = get_stream(stream_name, realm).id
+            result = self.client_delete('/json/streams/%d' % (stream_id,))
+            self.assert_json_success(result)
+
+        # Create a stream and then delete (deactivate) it
+        self.common_subscribe_to_streams(iago_user.email, ["test-stream"])
+        delete_stream('test-stream')
+        # Create an invite-only stream and then delete (deactivate) it
+        self.common_subscribe_to_streams(iago_user.email, ["test-private-stream"], invite_only=True)
+        delete_stream('test-private-stream')
+
+        # Make sure we're able to fetch deactivated streams with
+        # `include_all_deactivated`
+        result = self.api_get(iago_user.email, '/api/v1/streams?include_all_deactivated=true')
+        self.assert_json_success(result)
+
+        result_json = result.json()
+        print()
+        print('API call for "/api/v1/streams?include_all_deactivated=true"')
+        print()
+        print(result_json)
+        print('------------------------------------------')
+        self.assertTrue('!DEACTIVATED:test-private-stream' in str(result_json))
+        self.assertTrue('!DEACTIVATED:test-stream' in str(result_json))
+        
+        all_streams = [stream.name for stream in
+                       Stream.objects.filter(realm=realm)]
+        self.assertEqual(sorted(s["name"] for s in result_json["streams"]),
+                         sorted(all_streams))
+
+        # Make sure deactivated streams aren't included without
+        # `include_all_deactivated` argument
+        result = self.api_get(iago_user.email, '/api/v1/streams')
+        self.assert_json_success(result)
+
+        result_json = result.json()
+        print()
+        print('API call for "/api/v1/streams"')
+        print()
+        print(result_json)
+        self.assertTrue('!DEACTIVATED:test-private-stream' not in str(result_json))
+        self.assertTrue('!DEACTIVATED:test-stream' not in str(result_json))
+
+        non_deactivated_streams = [stream.name for stream in
+                                   Stream.objects.filter(realm=realm, deactivated=False)]
+        self.assertEqual(sorted(s["name"] for s in result_json["streams"]),
+                         sorted(non_deactivated_streams))
+
 class AccessStreamTest(ZulipTestCase):
     def test_access_stream(self) -> None:
         """
